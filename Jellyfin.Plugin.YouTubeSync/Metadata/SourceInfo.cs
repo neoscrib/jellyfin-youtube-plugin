@@ -2,7 +2,7 @@ using Jellyfin.Plugin.YouTubeSync.Configuration;
 
 namespace Jellyfin.Plugin.YouTubeSync.Metadata;
 
-/// <summary>Channel or playlist metadata returned by <see cref="YtDlpService.GetSourceInfoAsync"/>.</summary>
+/// <summary>Channel or playlist metadata returned by <see cref="YouTubeDataApiService.GetSourceInfoAsync"/>.</summary>
 public sealed class SourceInfo
 {
     /// <summary>Gets or sets the channel / playlist title.</summary>

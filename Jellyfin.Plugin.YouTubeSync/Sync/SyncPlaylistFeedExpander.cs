@@ -11,12 +11,12 @@ namespace Jellyfin.Plugin.YouTubeSync.Sync;
 
 public sealed class SyncPlaylistFeedExpander
 {
-    private readonly YtDlpService _ytDlpService;
+    private readonly YouTubeDataApiService _youTubeDataApiService;
     private readonly ILogger<SyncPlaylistFeedExpander> _logger;
 
-    public SyncPlaylistFeedExpander(YtDlpService ytDlpService, ILogger<SyncPlaylistFeedExpander> logger)
+    public SyncPlaylistFeedExpander(YouTubeDataApiService youTubeDataApiService, ILogger<SyncPlaylistFeedExpander> logger)
     {
-        _ytDlpService = ytDlpService;
+        _youTubeDataApiService = youTubeDataApiService;
         _logger = logger;
     }
 
@@ -71,13 +71,13 @@ public sealed class SyncPlaylistFeedExpander
             }
 
             discoveredPlaylists++;
-            var playlistInfo = await _ytDlpService.GetSourceInfoAsync(playlistUrl, cancellationToken).ConfigureAwait(false);
+            var playlistInfo = await _youTubeDataApiService.GetSourceInfoAsync(playlistUrl, cancellationToken).ConfigureAwait(false);
             var playlistThumbnailUrl = playlistInfo?.ThumbnailUrl ?? string.Empty;
             var playlistPosterUrl = string.IsNullOrWhiteSpace(playlistInfo?.PosterUrl)
                 ? playlistThumbnailUrl
                 : playlistInfo.PosterUrl;
-            var playlistVideos = await _ytDlpService
-                .GetPlaylistEntriesAsync(playlistUrl, 0, maxPlaylistEntryScanCount, cancellationToken)
+            var playlistVideos = await _youTubeDataApiService
+                .GetPlaylistEntriesAsync(playlistUrl, maxPlaylistEntryScanCount, cancellationToken)
                 .ConfigureAwait(false);
 
             for (var index = 0; index < playlistVideos.Count; index++)
@@ -93,7 +93,7 @@ public sealed class SyncPlaylistFeedExpander
                     videoEntry,
                     playlistId,
                     seasonDefinition,
-                    index + 1,
+                    videoEntry["playlist_position"]?.GetValue<int>() ?? index + 1,
                     videoId,
                     playlistThumbnailUrl,
                     playlistPosterUrl);

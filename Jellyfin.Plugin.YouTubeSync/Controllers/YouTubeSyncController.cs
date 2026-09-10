@@ -30,19 +30,19 @@ public class YouTubeSyncController : ControllerBase
 {
     private readonly ResolveService _resolveService;
     private readonly ManagedTranscodeService _managedTranscodeService;
-    private readonly YtDlpService _ytDlpService;
+    private readonly YouTubeDataApiService _youTubeDataApiService;
     private readonly ILogger<YouTubeSyncController> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="YouTubeSyncController"/> class.</summary>
     public YouTubeSyncController(
         ResolveService resolveService,
         ManagedTranscodeService managedTranscodeService,
-        YtDlpService ytDlpService,
+        YouTubeDataApiService youTubeDataApiService,
         ILogger<YouTubeSyncController> logger)
     {
         _resolveService = resolveService;
         _managedTranscodeService = managedTranscodeService;
-        _ytDlpService = ytDlpService;
+        _youTubeDataApiService = youTubeDataApiService;
         _logger = logger;
     }
 
@@ -122,6 +122,7 @@ public class YouTubeSyncController : ControllerBase
     /// <param name="url">The YouTube channel or playlist URL.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A <see cref="SourceInfo"/> object, or 400/503 on error.</returns>
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "RequiresElevation")]
     [HttpGet("source-info")]
     [ProducesResponseType(typeof(SourceInfo), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -135,15 +136,13 @@ public class YouTubeSyncController : ControllerBase
 
         _logger.LogInformation("Source-info request for URL {Url}", url);
 
-        var info = await _ytDlpService.GetSourceInfoAsync(url, cancellationToken).ConfigureAwait(false);
-        if (info is null)
+        try
         {
-            return StatusCode(
-                StatusCodes.Status503ServiceUnavailable,
-                "Failed to fetch source info from YouTube. Check that yt-dlp is installed and the URL is valid.");
+            return Ok(await _youTubeDataApiService.GetSourceInfoAsync(url, cancellationToken).ConfigureAwait(false));
         }
-
-        return Ok(info);
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, ex.Message);
+        }
     }
 }
-

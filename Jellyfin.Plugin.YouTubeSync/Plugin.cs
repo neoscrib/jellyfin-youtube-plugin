@@ -33,7 +33,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public override string Name => "YouTubeSync";
 
     /// <inheritdoc />
-    public override Guid Id => Guid.Parse("55a3502b-b6b2-4a3c-93d7-f3c4e7b1e0d5");
+    public override Guid Id => Guid.Parse("55a3502b-b6b2-4a3c-93d7-f3c4e7b1e0d6");
 
     /// <summary>Gets the running plugin instance (set during construction).</summary>
     public static Plugin? Instance { get; private set; }
@@ -64,6 +64,9 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     /// <inheritdoc />
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
+        serviceCollection.AddSingleton<YouTubeDataApiService>(_ => new YouTubeDataApiService(
+            new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(60) },
+            () => Plugin.Instance?.Configuration.YouTubeApiKey ?? string.Empty));
         serviceCollection.AddSingleton<YtDlpService>();
         serviceCollection.AddSingleton<SyncPlaylistFeedExpander>();
         serviceCollection.AddSingleton<SimpleResolveCache>();

@@ -41,6 +41,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets the list of YouTube sources (channels/playlists) to sync.</summary>
     public List<SourceDefinition> Sources { get; set; } = new();
 
+    /// <summary>Gets or sets the API key used for YouTube Data API v3 metadata requests.</summary>
+    public string YouTubeApiKey { get; set; } = string.Empty;
+
     /// <summary>
     /// Gets or sets the path to the yt-dlp executable.
     /// Defaults to "yt-dlp" (expects it to be on PATH).

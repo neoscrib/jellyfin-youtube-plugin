@@ -1,8 +1,9 @@
 /* Must match Plugin.Id in Plugin.cs */
-const pluginUniqueId = '55a3502b-b6b2-4a3c-93d7-f3c4e7b1e0d5';
+const pluginUniqueId = '55a3502b-b6b2-4a3c-93d7-f3c4e7b1e0d6';
 
 export default function (view) {
     let sources = [];
+    let savedConfig = {};
     let editIndex = -1;
 
     function updateFeedVisibility() {
@@ -39,7 +40,7 @@ export default function (view) {
         list.innerHTML = sources.map(function (s, i) {
             const contentType = s.Type === 'Playlist' ? 'Playlist' : 'Channel';
             const appearance = s.Mode === 'Movies' ? 'Separate movies' : 'Episodes in a series';
-            const feed = s.Type === 'Channel' ? (s.Feed || 'Videos') : null;
+            const feed = s.Type === 'Channel' ? ((s.Feed || 'Videos') === 'Videos' ? 'All uploads' : s.Feed) : null;
             return '<div class="listItem listItem-border" style="display:flex;align-items:center;padding:.75em 1em;gap:1em;">'
                 + '<div style="flex:1;min-width:0;">'
                 + '<div style="font-weight:600;">' + escapeHtml(s.Name || s.Id) + '</div>'
@@ -104,6 +105,8 @@ export default function (view) {
     view.addEventListener('viewshow', function () {
         Dashboard.showLoadingMsg();
         ApiClient.getPluginConfiguration(pluginUniqueId).then(function (config) {
+            savedConfig = config;
+            view.querySelector('#YouTubeApiKey').value = config.YouTubeApiKey || '';
             view.querySelector('#YtDlpPath').value = config.YtDlpPath || 'yt-dlp';
             view.querySelector('#LibraryBasePath').value = config.LibraryBasePath || '/media/youtube';
             view.querySelector('#JellyfinBaseUrl').value = config.JellyfinBaseUrl || 'http://localhost:8096';
@@ -127,6 +130,8 @@ export default function (view) {
 
     view.querySelector('#saveBtn').addEventListener('click', function () {
         const config = {
+            ...savedConfig,
+            YouTubeApiKey: view.querySelector('#YouTubeApiKey').value.trim(),
             YtDlpPath: view.querySelector('#YtDlpPath').value.trim(),
             LibraryBasePath: view.querySelector('#LibraryBasePath').value.trim(),
             JellyfinBaseUrl: view.querySelector('#JellyfinBaseUrl').value.trim(),

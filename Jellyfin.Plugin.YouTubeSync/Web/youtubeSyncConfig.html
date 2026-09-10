@@ -13,8 +13,13 @@
                 <h3 class="sectionTitle">General</h3>
 
                 <div class="inputContainer">
+                    <input is="emby-input" type="password" id="YouTubeApiKey" label="YouTube Data API v3 key" autocomplete="new-password" />
+                    <div class="fieldDescription">Required for metadata and syncing. Enable YouTube Data API v3 in your Google Cloud project, paste its API key here, and save before adding sources. yt-dlp is used only for playback.</div>
+                </div>
+
+                <div class="inputContainer">
                     <input is="emby-input" type="text" id="YtDlpPath" label="yt-dlp path" />
-                    <div class="fieldDescription">Path to the yt-dlp binary. Use <code>yt-dlp</code> if it is available on PATH.</div>
+                    <div class="fieldDescription">Path to the yt-dlp binary, used only for playback. Use <code>yt-dlp</code> if it is available on PATH.</div>
                 </div>
 
                 <div class="inputContainer">
@@ -136,9 +141,9 @@
 
                 <div class="inputContainer" id="editSourceFeedContainer">
                     <select is="emby-select" id="editSourceFeed" label="Channel feed">
-                        <option value="Videos">Videos</option>
+                        <option value="Videos">All uploads (including Shorts and streams)</option>
                         <option value="Playlists">Playlists</option>
-                        <option value="Shorts">Shorts</option>
+                        <option value="Shorts" disabled>Shorts only (unsupported by Data API)</option>
                         <option value="Streams">Live / Streams</option>
                     </select>
                     <div class="fieldDescription">For channel sources, choose which tab should be synced.</div>

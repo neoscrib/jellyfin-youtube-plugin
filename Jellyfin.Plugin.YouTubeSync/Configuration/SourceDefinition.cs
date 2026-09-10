@@ -25,13 +25,13 @@ public enum SourceMode
 /// <summary>Determines which channel tab is synced for channel sources.</summary>
 public enum ChannelFeed
 {
-    /// <summary>Sync regular uploaded videos from the /videos tab.</summary>
+    /// <summary>Sync all uploads, including Shorts and streams.</summary>
     Videos,
 
     /// <summary>Sync channel-curated playlists from the /playlists tab.</summary>
     Playlists,
 
-    /// <summary>Sync short-form uploads from the /shorts tab.</summary>
+    /// <summary>Legacy Shorts-only selection; unsupported by YouTube Data API.</summary>
     Shorts,
 
     /// <summary>Sync live and stream archive content from the /streams tab.</summary>
@@ -69,10 +69,9 @@ public class SourceDefinition
     public string ThumbnailUrl { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets the yt-dlp-compatible URL for this source.
+    /// Gets the YouTube URL identifying this source and its selected feed.
     /// <para>
-    /// For channels the <c>/videos</c> tab is appended automatically so that only regular
-    /// uploads are returned — Shorts and live streams are excluded.
+    /// For channels the selected feed suffix is appended. The Videos feed uses the API uploads playlist.
     /// </para>
     /// </summary>
     public string Url

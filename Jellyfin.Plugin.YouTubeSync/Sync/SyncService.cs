@@ -25,14 +25,14 @@ public class SyncService
     private const int MinimumRetentionEntryScanCount = 25;
     private const int EstimatedUploadsPerDayForRetentionScan = 5;
 
-    private readonly YtDlpService _ytDlpService;
+    private readonly YouTubeDataApiService _youTubeDataApiService;
     private readonly SyncPlaylistFeedExpander _playlistFeedExpander;
     private readonly ILogger<SyncService> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="SyncService"/> class.</summary>
-    public SyncService(YtDlpService ytDlpService, SyncPlaylistFeedExpander playlistFeedExpander, ILogger<SyncService> logger)
+    public SyncService(YouTubeDataApiService youTubeDataApiService, SyncPlaylistFeedExpander playlistFeedExpander, ILogger<SyncService> logger)
     {
-        _ytDlpService = ytDlpService;
+        _youTubeDataApiService = youTubeDataApiService;
         _playlistFeedExpander = playlistFeedExpander;
         _logger = logger;
     }
@@ -67,7 +67,7 @@ public class SyncService
         CancellationToken cancellationToken)
     {
         var config = Plugin.Instance!.Configuration;
-        var sourceInfo = await _ytDlpService.GetSourceInfoAsync(source.Url, cancellationToken).ConfigureAwait(false);
+        var sourceInfo = await _youTubeDataApiService.GetSourceInfoAsync(source.Url, cancellationToken).ConfigureAwait(false);
         var retentionCutoffUtc = config.VideoRetentionDays > 0
             ? DateTime.UtcNow.AddDays(-config.VideoRetentionDays)
             : (DateTime?)null;
@@ -94,7 +94,7 @@ public class SyncService
 
         var maxEntryScanCount = GetMaxEntryScanCount(config.VideoRetentionDays, config.MaxVideosPerSource);
         var playlistDiscoveryLimit = GetPlaylistDiscoveryLimit(config.RecentPlaylistsToKeep);
-    var playlistVideoLimit = GetPlaylistVideoLimit(config.MaxVideosPerSource);
+        var playlistVideoLimit = GetPlaylistVideoLimit(config.MaxVideosPerSource);
 
         if (isChannelPlaylistFeed)
         {
@@ -123,10 +123,9 @@ public class SyncService
                 config.VideoRetentionDays);
         }
 
-        var entries = await _ytDlpService
+        var entries = await _youTubeDataApiService
             .GetPlaylistEntriesAsync(
                 source.Url,
-                isChannelPlaylistFeed ? 0 : config.VideoRetentionDays,
                 isChannelPlaylistFeed ? playlistDiscoveryLimit : maxEntryScanCount,
                 cancellationToken)
             .ConfigureAwait(false);
@@ -180,16 +179,8 @@ public class SyncService
                             return;
                         }
 
-                        var metadata = await _ytDlpService.GetVideoMetadataAsync(videoId, innerCancellationToken).ConfigureAwait(false)
-                            ?? BuildFallbackVideoMetadata(entry, videoId, name);
-
+                        var metadata = BuildVideoMetadata(entry, videoId);
                         NormalizeVideoMetadata(metadata, entry, videoId, name);
-
-                        if (metadata.PublishedUtc is null)
-                        {
-                            metadata.PublishedUtc = await _ytDlpService.GetVideoPublishedDateAsync(videoId, innerCancellationToken)
-                                .ConfigureAwait(false);
-                        }
 
                         if (metadata.PublishedUtc is null)
                         {
@@ -368,6 +359,17 @@ public class SyncService
             : SyncNfoBuilder.BuildEpisodeNfo(video, sourceName, seasonNumber, episodeNumber, thumbFileName);
         await WriteTextFileIfChangedAsync(nfoPath, nfo, cancellationToken).ConfigureAwait(false);
 
+        // Home Videos libraries display the containing Folder, whose date is independent
+        // of the video's NFO. A local metadata provider imports this date during scans.
+        if (video.PublishedUtc is DateTime publishedUtc)
+        {
+            var date = publishedUtc.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            await WriteTextFileIfChangedAsync(
+                Path.Combine(videoDir, VideoFolderMetadataProvider.MetadataFileName),
+                $"<youtubeSyncFolder><premiered>{date}</premiered></youtubeSyncFolder>",
+                cancellationToken).ConfigureAwait(false);
+        }
+
         await SyncArtworkHelper.DownloadArtworkAsync(_logger, video.ThumbnailUrl, videoDir, new[] { "folder", "poster" }, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -489,7 +491,7 @@ public class SyncService
         catch { return null; }
     }
 
-    private static VideoMetadata BuildFallbackVideoMetadata(JsonNode entry, string videoId, string sourceName)
+    private static VideoMetadata BuildVideoMetadata(JsonNode entry, string videoId)
     {
         return new VideoMetadata
         {
@@ -497,27 +499,17 @@ public class SyncService
             SyncId = GetString(entry, "__sync_id"),
             Title = GetString(entry, "title"),
             Description = GetString(entry, "description"),
-            ThumbnailUrl = GetFallbackVideoThumbnailUrl(entry),
-            ChannelName = sourceName,
+            ThumbnailUrl = GetString(entry, "thumbnail"),
+            ChannelName = GetString(entry, "channel"),
+            DurationSeconds = GetNullableInt(entry, "duration"),
             PlaylistId = GetString(entry, "__playlist_id"),
             PlaylistTitle = GetString(entry, "__playlist_title"),
             PlaylistThumbnailUrl = GetString(entry, "__playlist_thumbnail_url"),
             PlaylistPosterUrl = GetString(entry, "__playlist_poster_url"),
             PlaylistSeasonNumber = GetNullableInt(entry, "__playlist_season_number"),
             PlaylistEpisodeNumber = GetNullableInt(entry, "__playlist_episode_number"),
-            PublishedUtc = YtDlpService.ParsePublishedDate(entry)
+            PublishedUtc = YouTubeDataApiService.ParsePublishedDate(entry)
         };
-    }
-
-    private static string GetFallbackVideoThumbnailUrl(JsonNode? entry)
-    {
-        var bestUrl = YtDlpService.GetBestVideoThumbnailUrl(entry);
-        if (!string.IsNullOrWhiteSpace(bestUrl))
-        {
-            return bestUrl;
-        }
-
-        return GetString(entry, "thumbnail");
     }
 
     private static void NormalizeVideoMetadata(VideoMetadata metadata, JsonNode entry, string videoId, string sourceName)
@@ -584,7 +576,7 @@ public class SyncService
 
         if (metadata.PublishedUtc is null)
         {
-            metadata.PublishedUtc = YtDlpService.ParsePublishedDate(entry);
+            metadata.PublishedUtc = YouTubeDataApiService.ParsePublishedDate(entry);
         }
     }
 

@@ -48,11 +48,14 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.ASSEMBLY_VERSION }}
 
-      # ── 4. Setup .NET 8 ────────────────────────────────────────────────────
+      # ── 4. Setup .NET 9 ────────────────────────────────────────────────────
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.0.x'
+
+      - name: Test plugin
+        run: dotnet test tests/YouTubeSync.Tests/YouTubeSync.Tests.csproj -c Release
 
       # ── 5. Build & publish (Release) ───────────────────────────────────────
       - name: Publish plugin

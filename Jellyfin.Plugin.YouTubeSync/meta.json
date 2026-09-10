@@ -1,11 +1,11 @@
 {
   "category": "General",
-  "guid": "55a3502b-b6b2-4a3c-93d7-f3c4e7b1e0d5",
+  "guid": "55a3502b-b6b2-4a3c-93d7-f3c4e7b1e0d6",
   "name": "YouTubeSync",
-  "description": "Syncs YouTube channels and playlists into Jellyfin via yt-dlp. Generates .strm and .nfo files and resolves direct-play progressive MP4/H.264/AAC streams on demand.",
-  "overview": "YouTube channel and playlist sync for Jellyfin via yt-dlp",
-  "owner": "kingschnulli",
-  "version": "1.0.0.0",
+  "description": "Syncs YouTube channels and playlists using YouTube Data API v3. Generates .strm and .nfo files and uses yt-dlp only for playback.",
+  "overview": "YouTube Data API metadata sync and on-demand playback for Jellyfin",
+  "owner": "neoscrib",
+  "version": "0.2.0.0",
   "targetAbi": "10.11.6.0",
   "framework": "net9.0",
   "assemblies": [
