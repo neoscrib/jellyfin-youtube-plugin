@@ -5,7 +5,7 @@
   "description": "Syncs YouTube channels and playlists using YouTube Data API v3. Generates .strm and .nfo files and uses yt-dlp only for playback.",
   "overview": "YouTube Data API metadata sync and on-demand playback for Jellyfin",
   "owner": "neoscrib",
-  "version": "0.2.0.0",
+  "version": "0.2.1.0",
   "targetAbi": "10.11.6.0",
   "framework": "net9.0",
   "assemblies": [

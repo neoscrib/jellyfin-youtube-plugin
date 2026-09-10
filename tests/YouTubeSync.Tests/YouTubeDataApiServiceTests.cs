@@ -59,7 +59,7 @@ public sealed class YouTubeDataApiServiceTests
         Assert.Equal(3723, entries[0]["duration"]!.GetValue<int>());
         Assert.Equal(2, entries[1]["playlist_position"]!.GetValue<int>());
         Assert.Equal(new DateTime(2026, 9, 5, 12, 0, 0, DateTimeKind.Utc), YouTubeDataApiService.ParsePublishedDate(entries[0]));
-        Assert.Equal(3, handler.Urls.Count);
+        Assert.Equal(4, handler.Urls.Count);
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public sealed class YouTubeDataApiServiceTests
             ? new HttpResponseMessage(HttpStatusCode.Forbidden)
             : Json("""{"nextPageToken":"next","items":[{"contentDetails":{"videoId":"a"}}]}""") };
         await Assert.ThrowsAsync<InvalidOperationException>(() => Service(handler).GetPlaylistEntriesAsync("PL123", 0, default));
-        Assert.Equal(2, handler.Urls.Count);
+        Assert.Equal(3, handler.Urls.Count);
     }
 
     [Fact]
@@ -178,6 +178,71 @@ public sealed class YouTubeDataApiServiceTests
             ? Json("""{"items":[{"id":"a","snippet":{"title":"Undated"}}]}""")
             : Json("""{"items":[{"contentDetails":{"videoId":"a"}}]}""") };
         await Assert.ThrowsAsync<InvalidOperationException>(() => Service(handler).GetPlaylistEntriesAsync("PL123", 0, default));
+    }
+
+
+    [Fact]
+    public async Task ExpiredEntriesDoNotRequestVideoDetailsButLaterRecentEntriesAreFound()
+    {
+        var handler = new Handler();
+        handler.Respond = request =>
+        {
+            var url = request.RequestUri!.ToString();
+            if (url.Contains("/videos?"))
+            {
+                Assert.Contains("id=new", url);
+                Assert.DoesNotContain("old", url);
+                return Json("{\"items\":[" + Video("new") + "]}");
+            }
+            if (url.Contains("pageToken=next")) return Json("""{"items":[{"contentDetails":{"videoId":"new","videoPublishedAt":"2026-09-05T12:00:00Z"}}]}""");
+            return Json("""{"nextPageToken":"next","items":[{"contentDetails":{"videoId":"old","videoPublishedAt":"2020-01-01T00:00:00Z"}}]}""");
+        };
+        var entries = await Service(handler).GetPlaylistEntriesAsync("PL123", 0, default, new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc));
+        Assert.Equal("new", Assert.Single(entries)["id"]!.GetValue<string>());
+        Assert.Equal(3, handler.Urls.Count);
+    }
+
+    [Fact]
+    public async Task KnownVideoReusesMetadataWithoutHidingLaterUnsyncedVideo()
+    {
+        var handler = new Handler();
+        var cached = new JsonObject { ["id"] = "known", ["title"] = "Known", ["published_at"] = "2026-09-05T12:00:00Z", ["playlist_position"] = 99 };
+        handler.Respond = request =>
+        {
+            var url = request.RequestUri!.ToString();
+            if (url.Contains("/videos?"))
+            {
+                Assert.Contains("id=new", url);
+                Assert.DoesNotContain("known", url);
+                return Json("{\"items\":[" + Video("new") + "]}");
+            }
+            return Json("""{"items":[{"contentDetails":{"videoId":"known"},"snippet":{"position":0}},{"contentDetails":{"videoId":"new"},"snippet":{"position":1}}]}""");
+        };
+        var entries = await Service(handler).GetPlaylistEntriesAsync("PL123", 0, default,
+            cachedVideos: new Dictionary<string, JsonNode> { ["known"] = cached });
+        Assert.Equal(2, entries.Count);
+        Assert.Equal(1, entries[0]["playlist_position"]!.GetValue<int>());
+        Assert.Equal(99, cached["playlist_position"]!.GetValue<int>());
+    }
+
+    [Fact]
+    public async Task FullyCachedPageMakesNoVideoDetailsRequest()
+    {
+        var handler = new Handler { Respond = _ => Json("""{"items":[{"contentDetails":{"videoId":"known"}}]}""") };
+        var cached = new JsonObject { ["id"] = "known", ["published_at"] = "2026-09-05T12:00:00Z" };
+        Assert.Single(await Service(handler).GetPlaylistEntriesAsync("PL123", 0, default,
+            cachedVideos: new Dictionary<string, JsonNode> { ["known"] = cached }));
+        Assert.Single(handler.Urls);
+    }
+
+    [Fact]
+    public async Task RetentionBoundaryIsInclusiveAndMissingListDateFallsBackToVideoDate()
+    {
+        var handler = new Handler { Respond = request => request.RequestUri!.ToString().Contains("/videos?")
+            ? Json("{\"items\":[" + Video("a") + "," + Video("b") + "]}")
+            : Json("""{"items":[{"contentDetails":{"videoId":"a","videoPublishedAt":"2026-09-05T12:00:00Z"}},{"contentDetails":{"videoId":"b"}}]}""") };
+        Assert.Equal(2, (await Service(handler).GetPlaylistEntriesAsync("PL123", 0, default, new DateTime(2026, 9, 5, 12, 0, 0, DateTimeKind.Utc))).Count);
+        Assert.Empty(await Service(handler).GetPlaylistEntriesAsync("PL123", 0, default, new DateTime(2026, 9, 6, 0, 0, 0, DateTimeKind.Utc)));
     }
 
     [Fact]

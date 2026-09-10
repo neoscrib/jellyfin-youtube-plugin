@@ -49,7 +49,8 @@ public sealed class SyncPlaylistFeedExpander
         IReadOnlyList<JsonNode> playlistEntries,
         IReadOnlyList<PlaylistSeasonDefinition> playlistSeasonDefinitions,
         int maxPlaylistEntryScanCount,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<string, JsonNode>? cachedVideos = null)
     {
         var expandedEntries = new List<JsonNode>();
         var discoveredPlaylists = 0;
@@ -77,7 +78,7 @@ public sealed class SyncPlaylistFeedExpander
                 ? playlistThumbnailUrl
                 : playlistInfo.PosterUrl;
             var playlistVideos = await _youTubeDataApiService
-                .GetPlaylistEntriesAsync(playlistUrl, maxPlaylistEntryScanCount, cancellationToken)
+                .GetPlaylistEntriesAsync(playlistUrl, maxPlaylistEntryScanCount, cancellationToken, cachedVideos: cachedVideos)
                 .ConfigureAwait(false);
 
             for (var index = 0; index < playlistVideos.Count; index++)

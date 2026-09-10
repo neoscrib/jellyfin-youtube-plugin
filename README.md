@@ -71,3 +71,9 @@ Channels accept `@handles`, `/channel/UC...` URLs, bare channel IDs, and legacy 
 - Missing keys, denied requests, quota exhaustion, and incomplete API responses fail sync before source cleanup. Existing playback links continue to use yt-dlp independently of the metadata API key.
 
 API references: [channels.list](https://developers.google.com/youtube/v3/docs/channels/list), [playlistItems.list](https://developers.google.com/youtube/v3/docs/playlistItems/list), [videos.list](https://developers.google.com/youtube/v3/docs/videos/list).
+
+### Incremental metadata sync
+
+The plugin processes playlist pages in batches of up to 50. Videos older than the retention cutoff are skipped using `contentDetails.videoPublishedAt` before requesting video details; missing dates fall back to the video's metadata. Metadata from completed syncs is reused for up to 24 hours, provided both the local `.strm` and `.nfo` still exist. Live and upcoming videos refresh every sync. The first sync after upgrading builds this cache.
+
+Discovery continues past old or known videos: `playlistItems.list` has no release-date ordering option, and playlists can put a new video after an old one. Checking those lightweight listings also lets the plugin remove videos that left a playlist and expire old local files. Failed syncs do not advance the cache. Retention changes still take effect on every sync; increasing retention can fetch older metadata again, within the configured scan limit.

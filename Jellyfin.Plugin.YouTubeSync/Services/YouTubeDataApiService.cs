@@ -45,7 +45,8 @@ public sealed class YouTubeDataApiService : IDisposable
     }
 
     public async Task<IReadOnlyList<JsonNode>> GetPlaylistEntriesAsync(
-        string url, int maxEntryScanCount, CancellationToken cancellationToken)
+        string url, int maxEntryScanCount, CancellationToken cancellationToken,
+        DateTime? retentionCutoffUtc = null, IReadOnlyDictionary<string, JsonNode>? cachedVideos = null)
     {
         var source = ParseSource(url);
         if (source.Feed == "shorts")
@@ -67,8 +68,36 @@ public sealed class YouTubeDataApiService : IDisposable
             if (string.IsNullOrWhiteSpace(playlistId)) throw new InvalidOperationException("YouTube channel has no accessible uploads playlist.");
         }
 
-        var entries = await ListAsync("playlistItems", new() { ["part"] = "snippet,contentDetails", ["playlistId"] = playlistId }, maxEntryScanCount, cancellationToken);
-        var ids = entries.Select(e => Text(e["contentDetails"], "videoId")).Where(id => id.Length > 0).Distinct(StringComparer.Ordinal).ToArray();
+        var result = new List<JsonNode>();
+        var query = new Dictionary<string, string> { ["part"] = "snippet,contentDetails", ["playlistId"] = playlistId };
+        var tokens = new HashSet<string>(StringComparer.Ordinal);
+        var scanned = 0;
+        while (true)
+        {
+            query["maxResults"] = (maxEntryScanCount > 0 ? Math.Min(50, maxEntryScanCount - scanned) : 50).ToString(CultureInfo.InvariantCulture);
+            var page = await RequestAsync("playlistItems", query, cancellationToken);
+            var entries = Items(page).ToList();
+            if (maxEntryScanCount > 0) entries = entries.Take(maxEntryScanCount - scanned).ToList();
+            scanned += entries.Count;
+            // The API exposes playlist position, not a guaranteed release-date ordering.
+            // An old or known entry cannot terminate discovery: later entries may be new.
+            var candidates = entries.Where(entry => !IsExpired(
+                Text(entry["contentDetails"], "videoPublishedAt"), retentionCutoffUtc)).ToList();
+            result.AddRange(await GetVideoPageAsync(candidates, source.Feed, retentionCutoffUtc, cachedVideos, cancellationToken));
+            if (maxEntryScanCount > 0 && scanned >= maxEntryScanCount) break;
+            var token = Text(page, "nextPageToken");
+            if (token.Length == 0) break;
+            if (!tokens.Add(token)) throw new InvalidOperationException("YouTube returned a repeated page token; sync stopped before cleanup.");
+            query["pageToken"] = token;
+        }
+        return result;
+    }
+
+    private async Task<IReadOnlyList<JsonNode>> GetVideoPageAsync(
+        IReadOnlyList<JsonNode> entries, string feed, DateTime? retentionCutoffUtc,
+        IReadOnlyDictionary<string, JsonNode>? cachedVideos, CancellationToken cancellationToken)
+    {
+        var ids = entries.Select(e => Text(e["contentDetails"], "videoId")).Where(id => id.Length > 0 && !(cachedVideos?.ContainsKey(id) ?? false)).Distinct(StringComparer.Ordinal).ToArray();
         var videos = new Dictionary<string, JsonNode>(StringComparer.Ordinal);
         foreach (var batch in ids.Chunk(50))
         {
@@ -80,12 +109,23 @@ public sealed class YouTubeDataApiService : IDisposable
         foreach (var entry in entries)
         {
             var id = Text(entry["contentDetails"], "videoId");
+            if (cachedVideos?.TryGetValue(id, out var cached) == true)
+            {
+                if (!IsExpired(Text(cached, "published_at"), retentionCutoffUtc))
+                {
+                    var copy = cached.DeepClone();
+                    copy["playlist_position"] = entry["snippet"]?["position"]?.GetValue<int>() + 1;
+                    result.Add(copy);
+                }
+                continue;
+            }
             // Deleted/private videos are omitted by videos.list. Never use playlist insertion dates as release dates.
             if (!videos.TryGetValue(id, out var video)) continue;
-            if (source.Feed == "streams" && video["liveStreamingDetails"] is null) continue;
+            if (feed == "streams" && video["liveStreamingDetails"] is null) continue;
             var snippet = video["snippet"];
             if (snippet is null || !DateTimeOffset.TryParse(Text(snippet, "publishedAt"), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out _))
                 throw new InvalidOperationException("YouTube returned video metadata without a valid publication date; sync stopped before cleanup.");
+            if (IsExpired(Text(snippet, "publishedAt"), retentionCutoffUtc)) continue;
             var durationText = Text(video["contentDetails"], "duration");
             int? duration = string.IsNullOrEmpty(durationText) ? null : checked((int)XmlConvert.ToTimeSpan(durationText).TotalSeconds);
             result.Add(new JsonObject
@@ -93,12 +133,18 @@ public sealed class YouTubeDataApiService : IDisposable
                 ["id"] = id, ["title"] = Text(snippet, "title"), ["description"] = Text(snippet, "description"),
                 ["thumbnail"] = Thumbnail(snippet), ["channel"] = Text(snippet, "channelTitle"),
                 ["published_at"] = Text(snippet, "publishedAt"), ["duration"] = duration,
+                ["metadata_fetched_at"] = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture),
+                ["refresh_always"] = Text(snippet, "liveBroadcastContent") is "live" or "upcoming",
                 ["playlist_position"] = entry["snippet"]?["position"]?.GetValue<int>() + 1
             });
         }
 
         return result;
     }
+
+    private static bool IsExpired(string dateText, DateTime? cutoff) => cutoff is DateTime value
+        && DateTimeOffset.TryParse(dateText, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var date)
+        && date.UtcDateTime < value;
 
     private async Task<JsonNode> GetChannelAsync(SourceReference source, CancellationToken cancellationToken)
     {

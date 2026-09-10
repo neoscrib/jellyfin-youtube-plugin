@@ -90,6 +90,9 @@ public class SyncService
 
         var sourceDir = Path.Combine(config.LibraryBasePath, SyncSeasonLayout.SanitizeFileName(name));
 
+        var cachedVideos = SyncMetadataCache.Load(sourceDir, source.Url, DateTime.UtcNow);
+        _logger.LogInformation("Reusing up to {Count} completed video metadata records for source '{Name}'.", cachedVideos.Count, name);
+
         _logger.LogInformation("Starting sync for source '{Name}'", name);
 
         var maxEntryScanCount = GetMaxEntryScanCount(config.VideoRetentionDays, config.MaxVideosPerSource);
@@ -127,7 +130,9 @@ public class SyncService
             .GetPlaylistEntriesAsync(
                 source.Url,
                 isChannelPlaylistFeed ? playlistDiscoveryLimit : maxEntryScanCount,
-                cancellationToken)
+                cancellationToken,
+                retentionCutoffUtc,
+                cachedVideos)
             .ConfigureAwait(false);
 
         IReadOnlyList<PlaylistSeasonDefinition> playlistSeasonDefinitions = Array.Empty<PlaylistSeasonDefinition>();
@@ -135,7 +140,7 @@ public class SyncService
         if (isChannelPlaylistFeed)
         {
             playlistSeasonDefinitions = _playlistFeedExpander.BuildSeasonDefinitions(entries);
-            entries = await _playlistFeedExpander.ExpandAsync(entries, playlistSeasonDefinitions, playlistVideoLimit, cancellationToken)
+            entries = await _playlistFeedExpander.ExpandAsync(entries, playlistSeasonDefinitions, playlistVideoLimit, cancellationToken, cachedVideos)
                 .ConfigureAwait(false);
         }
 
@@ -206,6 +211,9 @@ public class SyncService
                             : Path.Combine(sourceDir, seasonFolder);
                         var videoDir = Path.Combine(parentDir, SyncSeasonLayout.BuildVideoFolderName(metadata.Title, metadata.VideoId));
 
+                        var safeName = SyncSeasonLayout.SanitizeFileName(string.IsNullOrWhiteSpace(metadata.Title) ? metadata.VideoId : metadata.Title);
+                        entry["__strm_path"] = Path.Combine(videoDir, safeName + ".strm");
+                        entry["__nfo_path"] = Path.Combine(videoDir, safeName + ".nfo");
                         desiredVideoDirectories.TryAdd(videoDir, 0);
                         if (!string.IsNullOrEmpty(seasonFolder))
                         {
@@ -297,6 +305,8 @@ public class SyncService
             source.Mode,
             new HashSet<string>(desiredSeasonDirectories.Keys, StringComparer.OrdinalIgnoreCase),
             new HashSet<string>(desiredVideoDirectories.Keys, StringComparer.OrdinalIgnoreCase));
+
+        await SyncMetadataCache.SaveAsync(sourceDir, source.Url, entries, cancellationToken).ConfigureAwait(false);
 
         _logger.LogInformation("Completed sync for source '{Name}'", name);
     }
