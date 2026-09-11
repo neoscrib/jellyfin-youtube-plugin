@@ -19,6 +19,7 @@ Then install **YouTubeSync** from the plugin catalogue and restart Jellyfin.
 - **Jellyfin 10.11.6** or compatible
 - **YouTube Data API v3 key** for metadata and sync
 - **yt-dlp** available on PATH (or configured in plugin settings)
+- **Node.js** (optional; can be configured as yt-dlp's JavaScript runtime for YouTube challenge solving)
 - **ffmpeg** (only needed for Enhanced playback mode)
 
 ## Getting started
@@ -41,6 +42,14 @@ For Home Videos libraries, the plugin also supplies each video folder's release 
 | **Enhanced** | Re-streams through a local ffmpeg process for more consistent quality. Falls back to Simple automatically if anything goes wrong. | Yes |
 
 You can switch between modes in the plugin settings at any time.
+
+### yt-dlp JavaScript runtime
+
+Recent YouTube playback can require JavaScript challenge solving. The plugin settings include an optional **Node.js path**. When configured, the plugin enables Node as an additional JavaScript runtime for yt-dlp.
+
+The equivalent yt-dlp arguments are `--js-runtimes node:/path/to/node`.
+
+Leaving the setting blank preserves yt-dlp's default JavaScript runtime behavior.
 
 ## Known limitations
 

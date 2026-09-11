@@ -23,6 +23,11 @@
                 </div>
 
                 <div class="inputContainer">
+                    <input is="emby-input" type="text" id="NodePath" label="Node.js path" />
+                    <div class="fieldDescription">Optional path to the Node.js binary used by yt-dlp for YouTube JavaScript challenge solving. When set, Node.js is enabled as an additional JavaScript runtime. Leave blank to use yt-dlp defaults.</div>
+                </div>
+
+                <div class="inputContainer">
                     <input is="emby-input" type="text" id="LibraryBasePath" label="Library folder" />
                     <div class="fieldDescription">Folder where YouTube items are created. This must already be inside a Jellyfin library.</div>
                 </div>

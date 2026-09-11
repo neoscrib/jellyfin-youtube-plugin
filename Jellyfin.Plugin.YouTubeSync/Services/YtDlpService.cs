@@ -30,6 +30,8 @@ public class YtDlpService
 
     private string YtDlpPath => Plugin.Instance?.Configuration.YtDlpPath ?? "yt-dlp";
 
+    private string NodePath => Plugin.Instance?.Configuration.NodePath ?? string.Empty;
+
     /// <summary>
     /// Returns the final playback URL for a single video using yt-dlp's own format selection.
     /// This may be a direct media URL or an HLS manifest URL.
@@ -150,6 +152,13 @@ public class YtDlpService
             UseShellExecute = false,
             CreateNoWindow = true
         };
+
+        var nodePath = NodePath;
+        if (!string.IsNullOrWhiteSpace(nodePath))
+        {
+            psi.ArgumentList.Add("--js-runtimes");
+            psi.ArgumentList.Add($"node:{nodePath}");
+        }
 
         foreach (var arg in arguments)
         {

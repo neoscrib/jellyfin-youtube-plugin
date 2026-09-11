@@ -108,6 +108,7 @@ export default function (view) {
             savedConfig = config;
             view.querySelector('#YouTubeApiKey').value = config.YouTubeApiKey || '';
             view.querySelector('#YtDlpPath').value = config.YtDlpPath || 'yt-dlp';
+            view.querySelector('#NodePath').value = config.NodePath || '';
             view.querySelector('#LibraryBasePath').value = config.LibraryBasePath || '/media/youtube';
             view.querySelector('#JellyfinBaseUrl').value = config.JellyfinBaseUrl || 'http://localhost:8096';
             view.querySelector('#CacheMinutes').value = config.CacheMinutes != null ? config.CacheMinutes : 5;
@@ -133,6 +134,7 @@ export default function (view) {
             ...savedConfig,
             YouTubeApiKey: view.querySelector('#YouTubeApiKey').value.trim(),
             YtDlpPath: view.querySelector('#YtDlpPath').value.trim(),
+            NodePath: view.querySelector('#NodePath').value.trim(),
             LibraryBasePath: view.querySelector('#LibraryBasePath').value.trim(),
             JellyfinBaseUrl: view.querySelector('#JellyfinBaseUrl').value.trim(),
             CacheMinutes: parseInt(view.querySelector('#CacheMinutes').value, 10) || 5,
